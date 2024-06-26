@@ -1,14 +1,18 @@
 import time
 import torch
-from torch import autocast
 from diffusers import StableDiffusionPipeline
+
 
 # Load the pre-trained Stable Diffusion 2.1 model
 model_id = "stabilityai/stable-diffusion-2-1"
 
 if torch.cuda.is_available():
-    device = torch.device ("cuda")
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
 print(f"Using device: {device}")
+
 pipe = StableDiffusionPipeline.from_pretrained(model_id)
 pipe = pipe.to(device)
 
@@ -17,10 +21,19 @@ prompt = "A fantasy landscape with mountains and rivers"
 
 # Function to measure inference rate
 def measure_inference_rate(prompt, pipe, num_iterations=10):
+    # Synchronize CUDA before starting timing
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+    
     start_time = time.time()
     for _ in range(num_iterations):
-        with autocast("cuda"):
-            image = pipe(prompt).images[0]
+        image = pipe(prompt).images[0]
+        
+        # Synchronize CUDA after each inference
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+            print (f"syncing")
+    
     end_time = time.time()
     
     total_time = end_time - start_time
