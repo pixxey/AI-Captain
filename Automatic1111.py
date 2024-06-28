@@ -3,6 +3,7 @@ import requests
 import base64
 import time
 import subprocess
+import random
 from datetime import datetime
 
 AUTOMATIC1111_REPO = 'https://github.com/AUTOMATIC1111/stable-diffusion-webui'
@@ -10,6 +11,30 @@ LOCALHOST_URL = "http://127.0.0.1:7860"
 API_URL = f"{LOCALHOST_URL}/sdapi/v1/txt2img"
 CHECK_INTERVAL = 5
 OUTPUT_BASE_DIR = "outputs"
+
+# List of 20 random prompts
+PROMPTS = [
+    "A futuristic cityscape",
+    "A serene forest with a flowing river",
+    "A bustling marketplace in an ancient city",
+    "A mystical castle floating in the sky",
+    "A vibrant underwater coral reef",
+    "A spaceship landing on an alien planet",
+    "A tranquil beach at sunset",
+    "A snowy mountain range",
+    "A lively carnival with colorful lights",
+    "A peaceful meadow with wildflowers",
+    "A dark and eerie haunted house",
+    "A futuristic robot in a city",
+    "A dragon flying over a village",
+    "A majestic waterfall in a dense jungle",
+    "A sci-fi laboratory with advanced technology",
+    "A beautiful galaxy with swirling stars",
+    "A knight in shining armor",
+    "A futuristic skyline at night",
+    "A quaint village in the countryside",
+    "A magical forest with glowing mushrooms"
+]
 
 def check_installation():
     if os.path.exists('stable-diffusion-webui'):
@@ -54,7 +79,7 @@ def save_image(image_data, output_dir, index):
         file.write(image_data)
     return image_filename
 
-def generate_images(prompt, num_images=10, steps=50):
+def generate_images(prompt, num_images=1, steps=50):
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(script_dir, OUTPUT_BASE_DIR, f"output_{current_time}")
@@ -78,7 +103,7 @@ def generate_images(prompt, num_images=10, steps=50):
         print(f"Error generating images: {e}")
         return
 
-    inference_time = end_time - start_time
+    inference_time = (end_time - start_time)
     iterations_per_second = steps / inference_time
     image_filenames = []
 
@@ -110,9 +135,12 @@ if __name__ == "__main__":
         install_automatic1111()
 
     server_running = check_if_running()
-    if server_running:
-        generate_images("A futuristic cityscape")
-    else:
+    if not server_running:
         launch_automatic1111()
-        generate_images("A futuristic cityscape")
 
+    # Select a random prompt from the list
+    selected_prompt = random.choice(PROMPTS)
+    print(f"Selected prompt: {selected_prompt}")
+
+    # Generate images using the selected prompt
+    generate_images(selected_prompt)
