@@ -79,7 +79,7 @@ def generate_images(prompt, num_images=10, steps=50):
         return
 
     inference_time = end_time - start_time
-    iterations_per_second = num_images / inference_time
+    iterations_per_second = steps / inference_time
     image_filenames = []
 
     if 'images' in result:
