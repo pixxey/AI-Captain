@@ -45,7 +45,7 @@ def wait_for_server():
 def launch_automatic1111():
     os.chdir('stable-diffusion-webui')
     print("Starting Automatic1111 server")
-    subprocess.Popen(['python3', 'launch.py', '--precision', 'full', '--no-half', '--api'])
+    subprocess.Popen(['python3', 'launch.py', '--no-half', '--api'])
     wait_for_server()
 
 def save_image(image_data, output_dir, index):
