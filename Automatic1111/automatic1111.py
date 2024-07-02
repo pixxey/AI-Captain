@@ -79,10 +79,10 @@ def save_image(image_data, output_dir, index):
         file.write(image_data)
     return image_filename
 
-def generate_images(prompt, num_images=1, steps=50):
+def generate_images(prompt, num_images=1, steps=50, batch_number=1):
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(script_dir, OUTPUT_BASE_DIR, f"output_{current_time}")
+    output_dir = os.path.join(script_dir, OUTPUT_BASE_DIR, f"output_{current_time}_batch_{batch_number}")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -114,20 +114,27 @@ def generate_images(prompt, num_images=1, steps=50):
     else:
         print("No images found in the response")
 
-    save_metrics(output_dir, payload, inference_time, iterations_per_second, image_filenames)
+    save_metrics(output_dir, payload, inference_time, iterations_per_second, image_filenames, batch_number)
 
-def save_metrics(output_dir, payload, inference_time, iterations_per_second, image_filenames):
-    metrics_filename = os.path.join(output_dir, "metrics.md")
+def save_metrics(output_dir, payload, inference_time, iterations_per_second, image_filenames, batch_number):
+    metrics_filename = os.path.join(output_dir, f"metrics_batch_{batch_number}.md")
+    metrics_content = (
+        f"\n# Generation Metrics (Batch {batch_number})\n"
+        f"- **Prompt**: {payload['prompt']}\n"
+        f"- **Steps**: {payload['steps']}\n"
+        f"- **Batch Size**: {payload['batch_size']}\n"
+        f"- **Inference Time**: {inference_time:.2f} seconds\n"
+        f"- **Iterations per Second**: {iterations_per_second:.2f}\n"
+        f"- **Generated Images**:\n"
+    )
+    for filename in image_filenames:
+        metrics_content += f"  - {filename}\n"
+
     with open(metrics_filename, "w") as metrics_file:
-        metrics_file.write(f"# Generation Metrics\n")
-        metrics_file.write(f"- **Prompt**: {payload['prompt']}\n")
-        metrics_file.write(f"- **Steps**: {payload['steps']}\n")
-        metrics_file.write(f"- **Batch Size**: {payload['batch_size']}\n")
-        metrics_file.write(f"- **Inference Time**: {inference_time:.2f} seconds\n")
-        metrics_file.write(f"- **Iterations per Second**: {iterations_per_second:.2f}\n")
-        metrics_file.write(f"- **Generated Images**:\n")
-        for filename in image_filenames:
-            metrics_file.write(f"  - {filename}\n")
+        metrics_file.write(metrics_content)
+
+    # Print metrics to console
+    print(metrics_content)
     print(f"Metrics saved to {metrics_filename}")
 
 if __name__ == "__main__":
@@ -142,5 +149,7 @@ if __name__ == "__main__":
     selected_prompt = random.choice(PROMPTS)
     print(f"Selected prompt: {selected_prompt}")
 
-    # Generate images using the selected prompt
-    generate_images(selected_prompt)
+    # Generate images using the selected prompt in three batches
+    generate_images(selected_prompt, num_images=1, batch_number=1)
+    generate_images(selected_prompt, num_images=5, batch_number=2)
+    generate_images(selected_prompt, num_images=10, batch_number=3)
