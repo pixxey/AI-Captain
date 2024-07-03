@@ -5,7 +5,7 @@ from transformers import BertTokenizer
 
 # Load the pretrained BERT ONNX model
 model_path = "bert.onnx"  # Update this path to your actual ONNX model path
-session = ort.InferenceSession(model_path)
+session = ort.InferenceSession(model_path, providers=['ROCMExecutionProvider'])
 
 # Load the tokenizer
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
