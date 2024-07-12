@@ -5,6 +5,7 @@ import time
 import subprocess
 import random
 import argparse
+import csv
 from datetime import datetime
 
 AUTOMATIC1111_REPO = 'https://github.com/AUTOMATIC1111/stable-diffusion-webui'
@@ -164,25 +165,26 @@ def generate_images(prompt, num_images=1, steps=50, batch_number=1):
     save_metrics(output_dir, payload, inference_time, iterations_per_second, image_filenames, batch_number)
 
 def save_metrics(output_dir, payload, inference_time, iterations_per_second, image_filenames, batch_number):
-    metrics_filename = os.path.join(output_dir, f"metrics_batch_{batch_number}.md")
-    metrics_content = (
-        f"\n# Generation Metrics (Batch {batch_number})\n"
-        f"- **Prompt**: {payload['prompt']}\n"
-        f"- **Steps**: {payload['steps']}\n"
-        f"- **Batch Size**: {payload['batch_size']}\n"
-        f"- **Inference Time**: {inference_time:.2f} seconds\n"
-        f"- **Iterations per Second**: {iterations_per_second:.2f}\n"
-        f"- **Generated Images**:\n"
-    )
-    for filename in image_filenames:
-        metrics_content += f"  - {filename}\n"
-
-    with open(metrics_filename, "w") as metrics_file:
-        metrics_file.write(metrics_content)
+    metrics_filename = os.path.join(output_dir, "metrics.csv")
+    file_exists = os.path.isfile(metrics_filename)
+    metrics_header = [
+        "Batch Number", "Prompt", "Steps", "Batch Size", "Inference Time (seconds)", 
+        "Iterations per Second", "Generated Images"
+    ]
+    metrics_data = [
+        batch_number, payload['prompt'], payload['steps'], payload['batch_size'], 
+        f"{inference_time:.2f}", f"{iterations_per_second:.2f}", 
+        ", ".join(image_filenames)
+    ]
+    
+    with open(metrics_filename, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(metrics_header)
+        writer.writerow(metrics_data)
 
     # Print metrics to console
-    print(metrics_content)
-    print(f"Metrics saved to {metrics_filename}")
+    print(f"Metrics for batch {batch_number} saved to {metrics_filename}")
 
 def run_in_loop(kill_flag):
     while True:
