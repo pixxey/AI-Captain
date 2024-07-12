@@ -4,6 +4,7 @@ import base64
 import time
 import subprocess
 import random
+import argparse
 from datetime import datetime
 
 AUTOMATIC1111_REPO = 'https://github.com/AUTOMATIC1111/stable-diffusion-webui'
@@ -49,8 +50,30 @@ def install_automatic1111():
     try:
         subprocess.run(['git', 'clone', AUTOMATIC1111_REPO], check=True)
         print("Cloning completed.")
+        print("Running make clean...")
+        os.chdir('stable-diffusion-webui')
+        subprocess.run(['make', 'clean'], check=True)
+        os.chdir('..')
     except subprocess.CalledProcessError as e:
         print(f"Error during cloning: {e}")
+
+def check_for_updates():
+    os.chdir('stable-diffusion-webui')
+    try:
+        subprocess.run(['git', 'fetch'], check=True)
+        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+        remote_commit = subprocess.check_output(['git', 'rev-parse', '@{u}']).strip()
+        if local_commit != remote_commit:
+            print("Updates available. Pulling latest changes...")
+            subprocess.run(['git', 'pull'], check=True)
+            print("Running make clean...")
+            subprocess.run(['make', 'clean'], check=True)
+        else:
+            print("No updates available.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error checking for updates: {e}")
+    finally:
+        os.chdir('..')
 
 def check_if_running():
     try:
@@ -72,6 +95,30 @@ def launch_automatic1111():
     print("Starting Automatic1111 server")
     subprocess.Popen(['python3', 'launch.py', '--no-half', '--api'])
     wait_for_server()
+    os.chdir('..')
+
+def kill_server():
+    print("Stopping the Automatic1111 server...")
+    try:
+        subprocess.run(['pkill', '-f', 'launch.py'], check=True)
+        print("Server stopped.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error stopping the server: {e}")
+
+def warm_up_server():
+    print("Warming up the server...")
+    prompt = "A warm-up prompt"
+    payload = {
+        "prompt": prompt,
+        "steps": 50,
+        "batch_size": 1
+    }
+    try:
+        response = requests.post(API_URL, json=payload)
+        response.raise_for_status()
+        print("Warm-up completed.")
+    except requests.RequestException as e:
+        print(f"Error during warm-up: {e}")
 
 def save_image(image_data, output_dir, index):
     image_filename = os.path.join(output_dir, f"output_{index}.png")
@@ -104,7 +151,7 @@ def generate_images(prompt, num_images=1, steps=50, batch_number=1):
         return
 
     inference_time = (end_time - start_time)
-    iterations_per_second = steps / inference_time
+    iterations_per_second = (steps / inference_time) * num_images  # Multiply by batch size
     image_filenames = []
 
     if 'images' in result:
@@ -137,19 +184,51 @@ def save_metrics(output_dir, payload, inference_time, iterations_per_second, ima
     print(metrics_content)
     print(f"Metrics saved to {metrics_filename}")
 
+def run_in_loop(kill_flag):
+    while True:
+        warm_up_server()  # Always run the warm-up batch
+
+        # Generate images using different prompts in three batches
+        used_prompts = set()
+        for batch_number in range(1, 4):
+            selected_prompt = random.choice([p for p in PROMPTS if p not in used_prompts])
+            used_prompts.add(selected_prompt)
+            print(f"Selected prompt for batch {batch_number}: {selected_prompt}")
+            generate_images(selected_prompt, num_images=batch_number, batch_number=batch_number)
+        
+        if kill_flag:
+            kill_server()
+            time.sleep(5)  # Wait before restarting the server to avoid race conditions
+            launch_automatic1111()
+        time.sleep(CHECK_INTERVAL)  # Wait before starting the next loop
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run the script in a loop if the --loop flag is provided.")
+    parser.add_argument('--loop', action='store_true', help="Run the script in a continuous loop.")
+    parser.add_argument('--kill', action='store_true', help="Kill the server at the end of each run.")
+    args = parser.parse_args()
+
     if not check_installation():
         install_automatic1111()
+    else:
+        check_for_updates()
 
     server_running = check_if_running()
     if not server_running:
         launch_automatic1111()
 
-    # Select a random prompt from the list
-    selected_prompt = random.choice(PROMPTS)
-    print(f"Selected prompt: {selected_prompt}")
+    if args.loop:
+        run_in_loop(args.kill)
+    else:
+        warm_up_server()  # Always run the warm-up batch
 
-    # Generate images using the selected prompt in three batches
-    generate_images(selected_prompt, num_images=1, batch_number=1)
-    generate_images(selected_prompt, num_images=5, batch_number=2)
-    generate_images(selected_prompt, num_images=10, batch_number=3)
+        # Generate images using different prompts in three batches
+        used_prompts = set()
+        for batch_number in range(1, 4):
+            selected_prompt = random.choice([p for p in PROMPTS if p not in used_prompts])
+            used_prompts.add(selected_prompt)
+            print(f"Selected prompt for batch {batch_number}: {selected_prompt}")
+            generate_images(selected_prompt, num_images=batch_number, batch_number=batch_number)
+        
+        if args.kill:
+            kill_server()
