@@ -10,7 +10,7 @@ class BertModelFromScratch(nn.Module):
     def __init__(self, config):
         super(BertModelFromScratch, self).__init__()
         self.bert = BertModel(config)
-        self.classifier = nn.Linear(config.hidden_size, 2)  # Binary classification example
+        self.classifier = nn.Linear(config.hidden_size, 2)  # Binary classification
 
     def forward(self, input_ids, attention_mask):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
@@ -46,9 +46,9 @@ model.apply(initialize_weights)
 torch.save(model.state_dict(), 'bert_from_scratch.pth')
 print("Model initialized and saved to bert_from_scratch.pth")
 
-# Step 2: Load and Preprocess Dataset for Pre-training
-# For simplicity, using a small subset of Wikipedia for demonstration
-dataset = load_dataset('wikipedia', '20220301.en', split='train[:1%]')
+# Step 2: Load and Preprocess Dataset for Training
+# Using the IMDb dataset for binary sentiment classification
+dataset = load_dataset('imdb')
 
 def preprocess_function(examples):
     return tokenizer(examples['text'], truncation=True, padding='max_length', max_length=128)
@@ -58,17 +58,19 @@ encoded_dataset = dataset.map(preprocess_function, batched=True)
 def convert_to_tensors(batch):
     return {
         'input_ids': torch.tensor(batch['input_ids']),
-        'attention_mask': torch.tensor(batch['attention_mask'])
+        'attention_mask': torch.tensor(batch['attention_mask']),
+        'labels': torch.tensor(batch['label'])
     }
 
-tensor_dataset = encoded_dataset.map(convert_to_tensors, batched=True, remove_columns=dataset.column_names)
+tensor_dataset = encoded_dataset.map(convert_to_tensors, batched=True, remove_columns=dataset['train'].column_names)
 
 def collate_fn(batch):
     input_ids = torch.stack([torch.tensor(item['input_ids']) for item in batch])
     attention_mask = torch.stack([torch.tensor(item['attention_mask']) for item in batch])
-    return {'input_ids': input_ids, 'attention_mask': attention_mask}
+    labels = torch.stack([torch.tensor(item['labels']) for item in batch])
+    return {'input_ids': input_ids, 'attention_mask': attention_mask, 'labels': labels}
 
-train_loader = DataLoader(tensor_dataset, batch_size=8, shuffle=True, collate_fn=collate_fn)
+train_loader = DataLoader(tensor_dataset['train'], batch_size=8, shuffle=True, collate_fn=collate_fn)
 
 # Step 3: Train the Model from Scratch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -84,12 +86,10 @@ for epoch in range(num_epochs):
     for batch in train_loader:
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
+        labels = batch['labels'].to(device)
         
         optimizer.zero_grad()
         logits = model(input_ids, attention_mask)
-        
-        # Dummy labels for illustration purposes
-        labels = torch.zeros(input_ids.size(0), dtype=torch.long).to(device)
         
         loss = loss_fn(logits, labels)
         loss.backward()
